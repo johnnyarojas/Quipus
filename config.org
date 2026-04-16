@@ -43,58 +43,148 @@ since everything else depends on it.
 (use-package ef-themes
   :config
   (add-hook 'ef-themes-post-load-hook #'my/set-org-fonts)
-  (load-theme 'ef-light :no-confirm))
+  (load-theme 'ef-night :no-confirm))
 #+END_SRC
 
 ** Starter Screen
 #+BEGIN_SRC emacs-lisp
 ;; Start page
+(defvar my/start-page-welcome nil
+  "Stores the welcome message for the current session.")
+
+(defvar my/start-page-dir (expand-file-name "welcome" user-emacs-directory)
+  "Directory containing start page configuration files.")
+
+(defun my/read-lines-from-file (filename)
+  "Read lines from FILENAME and return as a list, ignoring empty lines.
+Returns nil if file doesn't exist or is empty."
+  (let ((filepath (expand-file-name filename my/start-page-dir)))
+    (when (file-exists-p filepath)
+      (with-temp-buffer
+        (insert-file-contents filepath)
+        (let ((lines (split-string (buffer-string) "\n" t)))
+          (when lines lines))))))
+
+(defun my/get-welcome-message ()
+  "Get or generate a welcome message for this buffer session."
+  (unless my/start-page-welcome
+    (let ((welcomes (or (my/read-lines-from-file "greetings.txt")
+                       '("Welcome Johnny"
+                         "Greetings Johnny"
+                         "Hello Johnny"
+                         "Hey Johnny"))))
+      (setq my/start-page-welcome (nth (random (length welcomes)) welcomes))))
+  my/start-page-welcome)
+
+(defun my/refresh-welcome-message ()
+  "Generate a new random welcome message and refresh the start page."
+  (interactive)
+  (setq my/start-page-welcome nil)
+  (my/render-start-page))
+
+(defun my/get-commands ()
+  "Get command suggestions from file or use defaults."
+  (let* ((suggestions (my/read-lines-from-file "suggestions.txt"))
+         (parsed-commands (when suggestions
+                           (mapcar (lambda (line)
+                                     (let ((parts (split-string line "|")))
+                                       (when (= (length parts) 2)
+                                         (cons (car parts) (cadr parts)))))
+                                   suggestions)))
+         ;; Filter out any nil values from malformed lines
+         (valid-commands (delq nil parsed-commands)))
+    (if (and valid-commands (> (length valid-commands) 0))
+        valid-commands
+      ;; Default commands if file doesn't exist, is empty, or has no valid entries
+      '(("C-x C-f" . "Find/Create File")
+        ("C-x C-b" . "Recent Buffers")
+        ("C-c a"   . "Open Agenda Menu")
+        ("C-x r b" . "Bookmarks")))))
+
+(defun my/render-start-page ()
+  "Render the start page with centered ASCII art."
+  (let ((buf (get-buffer "*start*")))
+    (when buf
+      (with-current-buffer buf
+        (let ((inhibit-read-only t))
+          (erase-buffer)
+          
+          (insert "\n\n")
+          
+          ;; Insert the ASCII art centered
+          (let ((art-lines '("                     d8,                           "
+                             "                    `8P                            "
+                             "                                                   "
+                             ".d88b,.88P?88   d8P  88b?88,.d88b,?88   d8P .d888b,"
+                             "88P  `88P'd88   88   88P`?88'  ?88d88   88  ?8b,   "
+                             "?8b  d88  ?8(  d88  d88   88b  d8P?8(  d88    `?8b "
+                             "`?888888  `?88P'?8bd88'   888888P'`?88P'?8b`?888P' "
+                             "    `?88                  88P'                     "
+                             "      88b                d88                       "
+                             "      ?8P                ?8P                       "))
+                (window-width (window-width))
+                (logo-padding 0))
+            (dolist (line art-lines)
+              (let* ((line-length (length line))
+                     (padding (/ (- window-width line-length) 2)))
+                (setq logo-padding padding)  ; Save padding for commands alignment
+                (insert (make-string (max 0 padding) ?\s))
+                (insert (propertize line 'face '(:foreground "#7c6f64")))
+                (insert "\n")))
+            
+            (insert "\n\n")
+            
+            ;; Welcome message (left-aligned with logo)
+            (insert (make-string (max 0 logo-padding) ?\s))
+            (insert (propertize (my/get-welcome-message)
+                               'face '(:foreground "#fabd2f" :weight bold)))
+            (insert "\n\n")
+            
+            ;; Commands (aligned with left edge of logo)
+            (let ((commands (my/get-commands)))
+              (dolist (cmd commands)
+                (insert (make-string (max 0 logo-padding) ?\s))
+                (insert (propertize (format "%-10s" (car cmd))
+                                   'face '(:foreground "#fabd2f" :weight bold)))
+                (insert (propertize (cdr cmd)
+                                   'face '(:foreground "#a89984")))
+                (insert "\n"))))
+          
+          ;; Push footer to bottom
+          (let* ((window-height (window-height))
+                 (current-line (line-number-at-pos (point-max)))
+                 (lines-to-add (- window-height current-line 3)))
+            (insert (make-string (max 0 lines-to-add) ?\n)))
+          
+          ;; Footer (centered at bottom)
+          (let* ((footer "Quipus by Johnny A. Rojas, 2026")
+                 (window-width (window-width))
+                 (padding (/ (- window-width (length footer)) 2)))
+            (insert (make-string (max 0 padding) ?\s))
+            (insert (propertize footer 'face '(:foreground "#665c54" :slant italic)))
+            (insert "\n")))
+        
+        ;; Disable line numbers in this buffer
+        (setq-local display-line-numbers nil)
+        
+        (goto-char (point-min))))))
+
 (let ((buf (get-buffer-create "*start*")))
   (with-current-buffer buf
-    (let ((inhibit-read-only t))
-      (erase-buffer)
-      (insert "\n\n")
-      (insert (propertize
-               "                     d8,
-                    `8P
-
-.d88b,.88P?88   d8P  88b?88,.d88b,?88   d8P .d888b,
-88P  `88P'd88   88   88P`?88'  ?88d88   88  ?8b,
-?8b  d88  ?8(  d88  d88   88b  d8P?8(  d88    `?8b
-`?888888  `?88P'?8bd88'   888888P'`?88P'?8b`?888P'
-    `?88                  88P'
-      88b                d88
-      ?8P                ?8P"
-               'face '(:foreground "#7c6f64")))
-      (insert "\n\n\n")
-      (insert (propertize (format-time-string "  %A, %B %-d %Y")
-                          'face '(:foreground "#a89984")))
-      (insert "\n\n")
-      (dolist (cmd '(("C-x C-f"  . "Find file")
-                     ("C-x b"    . "Switch buffer")
-                     ("C-x C-b"  . "List buffers")
-                     ("C-x k"    . "Kill buffer")
-                     ("C-s"      . "Search")
-                     ("M-x"      . "Run command")
-                     ("C-x 1"    . "One window")
-                     ("C-x 2"    . "Split horizontal")
-                     ("C-x 3"    . "Split vertical")))
-        (insert (propertize (format "  %-12s" (car cmd))
-                            'face '(:foreground "#fabd2f" :weight bold)))
-        (insert (propertize (format "%s\n" (cdr cmd))
-                            'face '(:foreground "#665c54"))))
-      (insert "\n")
-      (insert (propertize "  r  refresh    q  quit\n"
-                          'face '(:foreground "#504945"))))
     (read-only-mode 1)
-    (goto-char (point-min))
+    
+    ;; Set up local keymap
     (use-local-map (make-sparse-keymap))
-    (local-set-key (kbd "q") #'bury-buffer)
-    (local-set-key (kbd "r") (lambda ()
-                               (interactive)
-                               (let ((inhibit-read-only t))
-                                 (erase-buffer)
-                                 (goto-char (point-min))))))
+    (local-set-key (kbd "g") #'my/refresh-welcome-message)
+    (local-set-key (kbd "q") #'quit-window)
+    
+    ;; Add hook to recenter when window size changes
+    (add-hook 'window-configuration-change-hook #'my/render-start-page nil t))
+  
+  ;; Initial render and set welcome message
+  (setq my/start-page-welcome nil)  ; Reset welcome for new buffer
+  (my/render-start-page)
+  
   (setq inhibit-startup-screen t
         initial-scratch-message nil
         initial-buffer-choice (lambda () (get-buffer "*start*"))))
@@ -113,15 +203,15 @@ This section defines the base fonts used across all buffers. ~~JetBrains Mono~~ 
 ;; Base fonts
 (set-face-attribute 'default nil
                     :font "FiraCode Nerd Font"
-                    :height 140)
+                    :height 130)
 
 (set-face-attribute 'fixed-pitch nil
                     :font "FiraCode Nerd Font"
-                    :height 140)
+                    :height 130)
 
 (set-face-attribute 'variable-pitch nil
                     :font "NewComputerModern08"
-                    :height 160)
+                    :height 150)
 #+END_SRC
 
 ** Line Numbers and Gutters
@@ -242,31 +332,31 @@ Support for  the Nix Language inside of Emacs
   ;; Monospace faces — explicit font instead of relying on inherit
   (set-face-attribute 'line-number nil
                       :inherit 'fixed-pitch
-                      :font "FiraCode Nerd Font" :height 140)
+                      :font "FiraCode Nerd Font" :height 130)
   (set-face-attribute 'line-number-current-line nil
                       :inherit 'fixed-pitch
-                      :font "FiraCode Nerd Font" :height 140)
+                      :font "FiraCode Nerd Font" :height 130)
   (set-face-attribute 'org-block nil
                       :inherit 'fixed-pitch
-                      :font "FiraCode Nerd Font" :height 140)
+                      :font "FiraCode Nerd Font" :height 130)
   (set-face-attribute 'org-code nil
                       :inherit 'fixed-pitch
-                      :font "FiraCode Nerd Font" :height 140)
+                      :font "FiraCode Nerd Font" :height 130)
   (set-face-attribute 'org-verbatim nil
                       :inherit 'fixed-pitch
-                      :font "FiraCode Nerd Font" :height 140)
+                      :font "FiraCode Nerd Font" :height 130)
   (set-face-attribute 'org-block-begin-line nil
                       :inherit 'fixed-pitch
-                      :font "FiraCode Nerd Font" :height 140)
+                      :font "FiraCode Nerd Font" :height 130)
   (set-face-attribute 'org-block-end-line nil
                       :inherit 'fixed-pitch
-                      :font "FiraCode Nerd Font" :height 140)
+                      :font "FiraCode Nerd Font" :height 130)
   (set-face-attribute 'org-table nil
                       :inherit 'fixed-pitch
-                      :font "FiraCode Nerd Font" :height 140)
+                      :font "FiraCode Nerd Font" :height 130)
   (set-face-attribute 'org-formula nil
                       :inherit 'fixed-pitch
-                      :font "FiraCode Nerd Font" :height 140)
+                      :font "FiraCode Nerd Font" :height 130)
 ;; Title
   (set-face-attribute 'org-document-title nil
                       :family "NewComputerModern10"
