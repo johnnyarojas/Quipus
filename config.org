@@ -1,0 +1,456 @@
+#+TITLE: Config
+* Introduction
+This configuration is built from scratch with a focus on performance and
+compatibility. It is structured as a literate document so that each section
+can be understood and modified independently. The configuration targets
+Emacs 29+ on NixOS.
+
+* Initialization
+This section sets up the package manager and use-package. It must run first
+since everything else depends on it.
+
+#+BEGIN_SRC emacs-lisp
+(require 'package)
+
+(setq package-archives
+      '(("melpa"  . "https://melpa.org/packages/")
+        ("elpa"   . "https://elpa.gnu.org/packages/")
+        ("nongnu" . "https://elpa.nongnu.org/packages/")))
+
+(package-initialize)
+
+(unless package-archive-contents
+  (package-refresh-contents))
+
+(require 'use-package)
+(setq use-package-always-ensure t)
+
+#+END_SRC
+
+
+* Visual Elements
+** Tab Bar
+#+BEGIN_SRC emacs-lisp
+(tab-bar-mode 1)
+(setq tab-bar-show t
+      tab-bar-close-button-show nil
+      tab-bar-new-button-show nil
+      tab-bar-format '(tab-bar-format-tabs tab-bar-separator))
+#+END_SRC
+
+** Theme
+#+BEGIN_SRC emacs-lisp
+(use-package ef-themes
+  :config
+  (add-hook 'ef-themes-post-load-hook #'my/set-org-fonts)
+  (load-theme 'ef-light :no-confirm))
+#+END_SRC
+
+** Starter Screen
+#+BEGIN_SRC emacs-lisp
+;; Start page
+(let ((buf (get-buffer-create "*start*")))
+  (with-current-buffer buf
+    (let ((inhibit-read-only t))
+      (erase-buffer)
+      (insert "\n\n")
+      (insert (propertize
+               "                     d8,
+                    `8P
+
+.d88b,.88P?88   d8P  88b?88,.d88b,?88   d8P .d888b,
+88P  `88P'd88   88   88P`?88'  ?88d88   88  ?8b,
+?8b  d88  ?8(  d88  d88   88b  d8P?8(  d88    `?8b
+`?888888  `?88P'?8bd88'   888888P'`?88P'?8b`?888P'
+    `?88                  88P'
+      88b                d88
+      ?8P                ?8P"
+               'face '(:foreground "#7c6f64")))
+      (insert "\n\n\n")
+      (insert (propertize (format-time-string "  %A, %B %-d %Y")
+                          'face '(:foreground "#a89984")))
+      (insert "\n\n")
+      (dolist (cmd '(("C-x C-f"  . "Find file")
+                     ("C-x b"    . "Switch buffer")
+                     ("C-x C-b"  . "List buffers")
+                     ("C-x k"    . "Kill buffer")
+                     ("C-s"      . "Search")
+                     ("M-x"      . "Run command")
+                     ("C-x 1"    . "One window")
+                     ("C-x 2"    . "Split horizontal")
+                     ("C-x 3"    . "Split vertical")))
+        (insert (propertize (format "  %-12s" (car cmd))
+                            'face '(:foreground "#fabd2f" :weight bold)))
+        (insert (propertize (format "%s\n" (cdr cmd))
+                            'face '(:foreground "#665c54"))))
+      (insert "\n")
+      (insert (propertize "  r  refresh    q  quit\n"
+                          'face '(:foreground "#504945"))))
+    (read-only-mode 1)
+    (goto-char (point-min))
+    (use-local-map (make-sparse-keymap))
+    (local-set-key (kbd "q") #'bury-buffer)
+    (local-set-key (kbd "r") (lambda ()
+                               (interactive)
+                               (let ((inhibit-read-only t))
+                                 (erase-buffer)
+                                 (goto-char (point-min))))))
+  (setq inhibit-startup-screen t
+        initial-scratch-message nil
+        initial-buffer-choice (lambda () (get-buffer "*start*"))))
+#+END_SRC
+
+** Font and Cursor
+This section defines the base fonts used across all buffers. ~~JetBrains Mono~~ FiraCode Nerd Font is the default monospace font...
+
+#+BEGIN_SRC emacs-lisp
+;; Disable UI chrome
+(tool-bar-mode -1)
+(scroll-bar-mode -1)
+(menu-bar-mode -1)
+(setq inhibit-startup-screen t)
+
+;; Base fonts
+(set-face-attribute 'default nil
+                    :font "FiraCode Nerd Font"
+                    :height 140)
+
+(set-face-attribute 'fixed-pitch nil
+                    :font "FiraCode Nerd Font"
+                    :height 140)
+
+(set-face-attribute 'variable-pitch nil
+                    :font "NewComputerModern08"
+                    :height 160)
+#+END_SRC
+
+** Line Numbers and Gutters
+#+BEGIN_SRC emacs-lisp
+(global-display-line-numbers-mode 1)
+(global-hl-line-mode 1)
+#+END_SRC
+
+** Modeline
+#+BEGIN_SRC emacs-lisp
+(use-package doom-modeline
+  :hook (after-init . doom-modeline-mode))
+
+(use-package nerd-icons)
+#+END_SRC
+
+* General Behaviour
+#+BEGIN_SRC emacs-lisp
+;; Silence the bell completely
+(setq ring-bell-function 'ignore)
+
+;; Match parentheses automatically
+(electric-pair-mode 1)
+(show-paren-mode 1)
+
+;; Remember cursor position when reopening files
+(save-place-mode 1)
+
+;; Recent files
+(recentf-mode 1)
+(setq recentf-max-saved-items 100)
+#+END_SRC
+
+* Completion and Navigation
+Global minor modes that are always active regardless of what you are
+editing. Things like vertico, consult, corfu.
+
+** Minibuffer Completion
+#+BEGIN_SRC emacs-lisp
+(use-package vertico
+  :config (vertico-mode 1))
+
+(use-package orderless
+  :custom
+  (completion-styles '(orderless basic)))
+
+(use-package marginalia
+  :config (marginalia-mode 1))
+
+(use-package consult
+  :bind ("C-x b" . consult-buffer))
+
+(use-package which-key
+  :config (which-key-mode 1))
+
+(use-package corfu
+  :custom
+  (corfu-auto t)
+  (corfu-delay 0.2)
+  (corfu-min-width 20)
+  :config
+  (global-corfu-mode 1))
+
+(use-package cape
+  :config
+  (add-to-list 'completion-at-point-functions #'cape-tex)
+  (add-to-list 'completion-at-point-functions #'cape-dabbrev)
+  (add-to-list 'completion-at-point-functions #'cape-file))
+#+END_SRC
+
+** File Navigation
+#+BEGIN_SRC emacs-lisp
+(use-package magit
+  :bind ("C-c g" . magit-status))
+#+END_SRC
+
+* Modes
+** Programming
+#+BEGIN_SRC emacs-lisp
+(use-package eglot
+  :ensure nil)
+#+END_SRC
+
+*** Python
+#+BEGIN_SRC emacs-lisp
+(use-package python
+  :hook (python-mode . eglot-ensure))
+#+END_SRC
+
+*** JavaScript
+#+BEGIN_SRC emacs-lisp
+(use-package js
+  :hook (js-mode . eglot-ensure))
+#+END_SRC
+
+*** Nix
+Support for  the Nix Language inside of Emacs
+#+BEGIN_SRC emacs-lisp
+; nix-mode provides syntax highlighting for the nix languague.
+(use-package nix-mode
+  :mode "\\.nix\\'"
+  :hook (nix-mode . eglot-ensure)
+  :config
+  (add-to-list 'eglot-server-programs
+               '(nix-mode . ("nixd" "--inlay-hints=false"))))
+#+END_SRC
+** Writing and Documents
+*** Org Mode
+#+BEGIN_SRC emacs-lisp
+(defun my-centered-buffer ()
+  "Enable a centered notebook-like layout for writing buffers."
+  (setq-local visual-fill-column-width 120
+              visual-fill-column-center-text t)
+  (visual-fill-column-mode 1)
+  (visual-line-mode 1))
+
+(defun my/set-org-fonts ()
+  ;; Monospace faces — explicit font instead of relying on inherit
+  (set-face-attribute 'line-number nil
+                      :inherit 'fixed-pitch
+                      :font "FiraCode Nerd Font" :height 140)
+  (set-face-attribute 'line-number-current-line nil
+                      :inherit 'fixed-pitch
+                      :font "FiraCode Nerd Font" :height 140)
+  (set-face-attribute 'org-block nil
+                      :inherit 'fixed-pitch
+                      :font "FiraCode Nerd Font" :height 140)
+  (set-face-attribute 'org-code nil
+                      :inherit 'fixed-pitch
+                      :font "FiraCode Nerd Font" :height 140)
+  (set-face-attribute 'org-verbatim nil
+                      :inherit 'fixed-pitch
+                      :font "FiraCode Nerd Font" :height 140)
+  (set-face-attribute 'org-block-begin-line nil
+                      :inherit 'fixed-pitch
+                      :font "FiraCode Nerd Font" :height 140)
+  (set-face-attribute 'org-block-end-line nil
+                      :inherit 'fixed-pitch
+                      :font "FiraCode Nerd Font" :height 140)
+  (set-face-attribute 'org-table nil
+                      :inherit 'fixed-pitch
+                      :font "FiraCode Nerd Font" :height 140)
+  (set-face-attribute 'org-formula nil
+                      :inherit 'fixed-pitch
+                      :font "FiraCode Nerd Font" :height 140)
+;; Title
+  (set-face-attribute 'org-document-title nil
+                      :family "NewComputerModern10"
+                      :weight 'bold :slant 'italic :height 1.6)
+  ;; Headings
+  (set-face-attribute 'org-level-1 nil
+                      :family "NewComputerModern10"
+                      :weight 'bold :slant 'italic :height 1.4)
+  (set-face-attribute 'org-level-2 nil
+                      :family "NewComputerModern10"
+                      :weight 'bold :slant 'italic :height 1.3)
+  (set-face-attribute 'org-level-3 nil
+                      :family "NewComputerModern10"
+                      :weight 'semi-bold :slant 'italic :height 1.2)
+  (set-face-attribute 'org-level-4 nil
+                      :family "NewComputerModern10"
+                      :weight 'normal :slant 'italic :height 1.1))
+
+(use-package org
+  :demand t
+  :hook ((org-mode . variable-pitch-mode)
+         (org-mode . my/set-org-fonts))  ;; add this
+  :bind
+  ("C-c a" . org-agenda)
+  ("C-c c" . org-capture)
+  :config
+  ;; Latex Preview Configuration
+  (setq org-format-latex-options
+	(plist-put org-format-latex-options :scale 2.0))
+  ;; Indentation
+  (setq org-adapt-indentation nil
+	org-src-preserve-indentation t
+	org-edit-src-content-indentation 0
+	org-startup-indented t)
+  ;; Visuals
+  (setq org-hide-emphasis-markers t
+        org-pretty-entities t
+        org-ellipsis " ▾")
+  ;; Behaviour
+  (setq org-directory "~/org"
+        org-return-follows-link t
+        org-confirm-babel-evaluate nil)
+
+  (org-babel-do-load-languages
+ 'org-babel-load-languages
+ '((python . t)
+   (shell . t))))
+
+(use-package org-superstar
+  :hook (org-mode . org-superstar-mode)
+  :config
+  (setq org-superstar-headline-bullets-list '("#" "@" "&" "%")
+        org-superstar-special-todo-items t
+        org-hide-leading-stars t))
+
+(use-package visual-fill-column
+  :hook (org-mode . my-centered-buffer)
+  :config
+  (setq visual-fill-column-center-text t))
+
+(use-package org-fragtog
+  :hook (org-mode . org-fragtog-mode))
+#+END_SRC
+
+*** LaTeX
+#+BEGIN_SRC emacs-lisp
+(use-package auctex
+  :hook ((LaTeX-mode . TeX-PDF-mode)
+         (LaTeX-mode . variable-pitch-mode)
+         (LaTeX-mode . my-centered-buffer))
+  :config
+  (setq TeX-auto-save t
+        TeX-parse-self t))
+
+(use-package s
+  :ensure t)
+
+(use-package xenops
+  :ensure t
+  :after s
+  :hook ((latex-mode LaTeX-mode) . xenops-mode)
+  :config
+  (require 'ob)
+  (setq xenops-reveal-on-entry t
+        xenops-math-image-scale-factor 1.5
+        xenops-math-latex-process 'dvisvgm))
+#+END_SRC
+
+*** Markdown
+#+BEGIN_SRC emacs-lisp
+(use-package markdown-mode
+  :hook ((markdown-mode . variable-pitch-mode)
+         (markdown-mode . my-centered-buffer)))
+#+END_SRC
+
+*** PDF Files
+#+BEGIN_SRC emacs-lisp
+(defun my/disable-line-numbers ()
+  "Disable line numbers for modes that do not need them."
+  (display-line-numbers-mode -1))
+
+(setq TeX-view-program-selection '((output-pdf "PDF Tools")))
+(setq TeX-view-program-list '(("PDF Tools" TeX-pdf-tools-sync-view)))
+
+(use-package pdf-tools
+  :mode ("\\.pdf\\'" . pdf-view-mode)
+  :hook (pdf-view-mode . my/disable-line-numbers)
+  :config
+  (pdf-tools-install)
+  (setq TeX-view-program-selection '((output-pdf "PDF Tools")))
+  (setq TeX-view-program-list '(("PDF Tools" TeX-pdf-tools-sync-view)))
+  (add-hook 'TeX-after-compilation-finished-functions
+            #'TeX-revert-document-buffer)
+  (setq pdf-view-display-size 'fit-page
+        pdf-view-resize-factor 1.1
+        pdf-view-use-unicode-ligatures t))
+
+  ;; (setq pdf-view-midnight-colors '("#afbcbf" . "#000e17"))
+  ;; (add-hook 'pdf-view-mode-hook #'pdf-view-midnight-minor-mode))
+#+END_SRC
+
+* Minor Modes
+** Global
+#+BEGIN_SRC emacs-lisp
+(global-auto-revert-mode 1) ;; automatically reload files changed on disk, useful when working with git
+(delete-selection-mode 1)   ;; typing replaces selected text, more intuitive behavior
+
+(use-package envrc
+  :hook (after-init . envrc-global-mode))
+#+END_SRC
+
+** Per Mode
+*** Text and Writing
+#+BEGIN_SRC emacs-lisp
+(use-package flyspell
+  :hook ((org-mode      . flyspell-mode)
+         (markdown-mode . flyspell-mode)
+         (LaTeX-mode    . flyspell-mode)))
+#+END_SRC
+
+*** Programming
+#+BEGIN_SRC emacs-lisp
+(use-package rainbow-delimiters
+  :hook (prog-mode . rainbow-delimiters-mode))
+
+(use-package smartparens
+  :config
+  (smartparens-global-mode t))
+
+(use-package yasnippet
+  :ensure t
+  :config
+  (yas-global-mode 1)
+  (yas-define-snippets 'org-mode '(("align" "\\begin{align*}\n$0\n\\end{align*}" "align*"))))
+
+;; (use-package yasnippet-snippets  ;; optional, adds many default snippets
+;;   :ensure t)
+#+END_SRC
+
+*** Voice to Text
+#+BEGIN_SRC emacs-lisp
+(use-package whisper
+  :vc (:url "https://github.com/natrys/whisper.el" :branch "master")
+  :bind
+  ;; Press once to start recording, press again to stop and transcribe
+  ("C-c w" . whisper-run)
+  :config
+  ;; Language model to use. "base" is a good balance of speed and accuracy.
+  ;; Options: tiny, base, small, medium, large-v3, large-v3-turbo
+  (setq whisper-model "base")
+  ;; Your spoken language (ISO 639-1 code)
+  (setq whisper-language "en")
+  ;; Insert transcribed text at cursor position (set to nil for a separate buffer)
+  (setq whisper-insert-text-at-point t)
+  ;; Stop recording automatically after 5 minutes if you forget
+  (setq whisper-recording-timeout 300))
+#+END_SRC 
+
+* Scrolling
+#+BEGIN_SRC emacs-lisp
+(use-package ultra-scroll
+  :init
+  (setq scroll-conservatively 3
+        scroll-margin 0)
+  :config
+  (ultra-scroll-mode 1))
+#+END_SRC
