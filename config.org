@@ -40,10 +40,34 @@ since everything else depends on it.
 
 ** Theme
 #+BEGIN_SRC emacs-lisp
+(defun switch-theme-dark-mode ()
+  "Switch to dark theme (ef-dark) and preserve customizations."
+  (interactive)
+  ;; Disable all currently loaded themes first
+  (mapc #'disable-theme custom-enabled-themes)
+  ;; Load the dark theme
+  (load-theme 'ef-dark :no-confirm)
+  ;; Explicitly re-apply fonts
+  (my/set-org-fonts)
+  (message "Switched to dark mode"))
+
+(defun switch-theme-light-mode ()
+  "Switch to light theme (ef-light) and preserve customizations."
+  (interactive)
+  ;; Disable all currently loaded themes first
+  (mapc #'disable-theme custom-enabled-themes)
+  ;; Load the light theme
+  (load-theme 'ef-light :no-confirm)
+  ;; Explicitly re-apply fonts
+  (my/set-org-fonts)
+  (message "Switched to light mode"))
+
+;; Your use-package configuration
 (use-package ef-themes
   :config
   (add-hook 'ef-themes-post-load-hook #'my/set-org-fonts)
-  (load-theme 'ef-night :no-confirm))
+  ;; Set your default theme on startup
+  (load-theme 'ef-light :no-confirm))
 #+END_SRC
 
 ** Starter Screen
@@ -243,6 +267,26 @@ This section defines the base fonts used across all buffers. ~~JetBrains Mono~~ 
 ;; Recent files
 (recentf-mode 1)
 (setq recentf-max-saved-items 100)
+
+;; Match parentheses automatically
+(electric-pair-mode 1)
+(show-paren-mode 1)
+
+;; Unfill paragraphs and regions
+(defun unfill-paragraph ()
+  "Replace newline chars in current paragraph by single spaces."
+  (interactive)
+  (let ((fill-column (point-max)))
+    (fill-paragraph nil)))
+
+(defun unfill-region (start end)
+  "Unfill the region, joining text paragraphs into a single line."
+  (interactive "r")
+  (let ((fill-column (point-max)))
+    (fill-region start end)))
+
+;; Remember cursor position when reopening files
+(save-place-mode 1)
 #+END_SRC
 
 * Completion and Navigation
@@ -383,6 +427,17 @@ Support for  the Nix Language inside of Emacs
   ("C-c a" . org-agenda)
   ("C-c c" . org-capture)
   :config
+  ;; Enable inline image display
+  (setq org-startup-with-inline-images t)
+  (setq org-image-actual-width '(400))  ; Adjust size as needed
+
+  (defun my/refresh-images-after-results (&rest _)
+    "Refresh inline images after babel results are inserted."
+    (org-display-inline-images t t))
+  
+  ;; Advice runs AFTER org-babel-insert-result completes
+  (advice-add 'org-babel-insert-result :after #'my/refresh-images-after-results)
+  
   ;; Latex Preview Configuration
   (setq org-format-latex-options
 	(plist-put org-format-latex-options :scale 2.0))
@@ -453,6 +508,7 @@ Support for  the Nix Language inside of Emacs
 #+END_SRC
 
 *** PDF Files
+
 #+BEGIN_SRC emacs-lisp
 (defun my/disable-line-numbers ()
   "Disable line numbers for modes that do not need them."
@@ -478,6 +534,34 @@ Support for  the Nix Language inside of Emacs
   ;; (add-hook 'pdf-view-mode-hook #'pdf-view-midnight-minor-mode))
 #+END_SRC
 
+*** ispell
+#+BEGIN_SRC emacs-lisp
+;; Configure hunspell for bilingual spell checking
+(with-eval-after-load "ispell"
+  ;; Use hunspell
+  (setq ispell-program-name "hunspell")
+  
+  ;; Set up bilingual dictionary (English + Spanish)
+  (setq ispell-dictionary "en_US,es_PE")
+  
+  ;; Tell hunspell to use both dictionaries
+  (ispell-set-spellchecker-params)
+  (ispell-hunspell-add-multi-dic "en_US,es_PE")
+  
+  ;; Optional: define a function to quickly switch between monolingual modes
+  (defun my/switch-dictionary ()
+    "Switch between English, Spanish, and bilingual spell checking."
+    (interactive)
+    (let* ((choices '("en_US" "es_PE" "en_US,es_PE"))
+           (current ispell-current-dictionary)
+           (prompt (format "Dictionary [current: %s]: " (or current "none"))))
+      (ispell-change-dictionary
+       (completing-read prompt choices nil t))))
+  
+  ;; Bind to a convenient key (optional)
+  ;; (global-set-key (kbd "C-c s d") 'my/switch-dictionary)
+  )
+#+END_SRC
 * Minor Modes
 ** Global
 #+BEGIN_SRC emacs-lisp
