@@ -373,6 +373,7 @@ Support for  the Nix Language inside of Emacs
   (visual-line-mode 1))
 
 (defun my/set-org-fonts ()
+  "Set custom fonts for org-mode elements."
   ;; Monospace faces — explicit font instead of relying on inherit
   (set-face-attribute 'line-number nil
                       :inherit 'fixed-pitch
@@ -401,7 +402,7 @@ Support for  the Nix Language inside of Emacs
   (set-face-attribute 'org-formula nil
                       :inherit 'fixed-pitch
                       :font "FiraCode Nerd Font" :height 130)
-;; Title
+  ;; Title
   (set-face-attribute 'org-document-title nil
                       :family "NewComputerModern10"
                       :weight 'bold :slant 'italic :height 1.6)
@@ -419,18 +420,21 @@ Support for  the Nix Language inside of Emacs
                       :family "NewComputerModern10"
                       :weight 'normal :slant 'italic :height 1.1))
 
+;; Only run this ONCE to install, then comment it out:
+;; (package-vc-install '(org-mode :url "https://code.tecosaur.net/tec/org-mode" :branch "dev"))
+
 (use-package org
-  :demand t
+  :ensure nil
+  :defer t
   :hook ((org-mode . variable-pitch-mode)
-         (org-mode . my/set-org-fonts))  ;; add this
-  :bind
-  ("C-c a" . org-agenda)
-  ("C-c c" . org-capture)
+         (org-mode . my/set-org-fonts))
+  :bind (("C-c a" . org-agenda)
+         ("C-c c" . org-capture))
   :config
   ;; Enable inline image display
-  (setq org-startup-with-inline-images t)
-  (setq org-image-actual-width '(400))  ; Adjust size as needed
-
+  (setq org-startup-with-inline-images t
+        org-image-actual-width '(400))
+  
   (defun my/refresh-images-after-results (&rest _)
     "Refresh inline images after babel results are inserted."
     (org-display-inline-images t t))
@@ -438,27 +442,41 @@ Support for  the Nix Language inside of Emacs
   ;; Advice runs AFTER org-babel-insert-result completes
   (advice-add 'org-babel-insert-result :after #'my/refresh-images-after-results)
   
-  ;; Latex Preview Configuration
-  (setq org-format-latex-options
-	(plist-put org-format-latex-options :scale 2.0))
   ;; Indentation
   (setq org-adapt-indentation nil
-	org-src-preserve-indentation t
-	org-edit-src-content-indentation 0
-	org-startup-indented t)
+        org-src-preserve-indentation t
+        org-edit-src-content-indentation 0
+        org-startup-indented t)
+  
   ;; Visuals
   (setq org-hide-emphasis-markers t
         org-pretty-entities t
         org-ellipsis " ▾")
+  
   ;; Behaviour
   (setq org-directory "~/org"
         org-return-follows-link t
         org-confirm-babel-evaluate nil)
-
+  
   (org-babel-do-load-languages
- 'org-babel-load-languages
- '((python . t)
-   (shell . t))))
+   'org-babel-load-languages
+   '((python . t)
+     (shell . t)))
+
+  ;; org-latex-preview configuration
+  (require 'org-latex-preview)
+
+  (plist-put org-latex-preview-appearance-options :scale 1.4)
+  (plist-put org-latex-preview-appearance-options :zoom 1.2)
+  (plist-put org-latex-preview-appearance-options :page-width 0.8)
+  
+  (add-hook 'org-mode-hook 'org-latex-preview-mode)
+  
+  (setq org-latex-preview-auto-mode t
+	org-latex-preview-auto-generate t
+	org-latex-preview-live t
+	org-latex-preview-live-debounce 0.25)
+  )
 
 (use-package org-superstar
   :hook (org-mode . org-superstar-mode)
@@ -471,9 +489,6 @@ Support for  the Nix Language inside of Emacs
   :hook (org-mode . my-centered-buffer)
   :config
   (setq visual-fill-column-center-text t))
-
-(use-package org-fragtog
-  :hook (org-mode . org-fragtog-mode))
 #+END_SRC
 
 *** LaTeX
