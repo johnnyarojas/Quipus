@@ -67,7 +67,7 @@ since everything else depends on it.
   :config
   (add-hook 'ef-themes-post-load-hook #'my/set-org-fonts)
   ;; Set your default theme on startup
-  (load-theme 'ef-light :no-confirm))
+  (load-theme 'ef-dark :no-confirm))
 #+END_SRC
 
 ** Starter Screen
@@ -254,6 +254,8 @@ This section defines the base fonts used across all buffers. ~~JetBrains Mono~~ 
 
 * General Behaviour
 #+BEGIN_SRC emacs-lisp
+(use-package treemacs)
+
 ;; Silence the bell completely
 (setq ring-bell-function 'ignore)
 
@@ -272,6 +274,18 @@ This section defines the base fonts used across all buffers. ~~JetBrains Mono~~ 
 (electric-pair-mode 1)
 (show-paren-mode 1)
 
+(defun my/add-note ()
+  "Create a new org note with an ISO date prefix in the current directory."
+  (interactive)
+  (let* ((name (read-string "Note name: "))
+         (date (format-time-string "%Y-%m-%d"))
+         (filename (format "%s_%s.org" date name))
+         (filepath (expand-file-name filename default-directory)))
+    (if (file-exists-p filepath)
+        (message "A note with that name already exists: %s" filename)
+      (find-file filepath)
+      (insert (format "#+TITLE: %s\n" filename)))))
+
 ;; Unfill paragraphs and regions
 (defun unfill-paragraph ()
   "Replace newline chars in current paragraph by single spaces."
@@ -287,6 +301,9 @@ This section defines the base fonts used across all buffers. ~~JetBrains Mono~~ 
 
 ;; Remember cursor position when reopening files
 (save-place-mode 1)
+
+;; General Support for Image Rendering
+;; (setq image-use-external-converter t)
 #+END_SRC
 
 * Completion and Navigation
@@ -427,7 +444,8 @@ Support for  the Nix Language inside of Emacs
   :ensure nil
   :defer t
   :hook ((org-mode . variable-pitch-mode)
-         (org-mode . my/set-org-fonts))
+         (org-mode . my/set-org-fonts)
+	 (org-mode . font-lock-ensure))
   :bind (("C-c a" . org-agenda)
          ("C-c c" . org-capture))
   :config
@@ -465,17 +483,29 @@ Support for  the Nix Language inside of Emacs
 
   ;; org-latex-preview configuration
   (require 'org-latex-preview)
-
   (plist-put org-latex-preview-appearance-options :scale 1.4)
   (plist-put org-latex-preview-appearance-options :zoom 1.2)
   (plist-put org-latex-preview-appearance-options :page-width 0.8)
   
   (add-hook 'org-mode-hook 'org-latex-preview-mode)
   
-  (setq org-latex-preview-auto-mode t
-	org-latex-preview-auto-generate t
-	org-latex-preview-live t
-	org-latex-preview-live-debounce 0.25)
+  (setq org-latex-preview-mode-display-live t
+	org-latex-preview-mode-update-delay 0.25
+	org-latex-preview-mode-track-inserts t)  ; auto-preview when you type new fragments
+  
+  ;; Keybinding (default from the dev branch)
+  (define-key org-mode-map (kbd "C-c C-x C-l") 'org-latex-preview)
+
+  (setq org-file-apps
+      '((auto-mode . emacs)  ; default: open in Emacs
+        ("\\.mp4\\'" . default)
+        ("\\.mkv\\'" . default)
+        ("\\.avi\\'" . default)
+        ("\\.mov\\'" . default)
+        ("\\.webm\\'" . defaults)
+        ("\\.mp3\\'" . default)
+        ("\\.flac\\'" . default)
+        ("\\.pdf\\'" . default)))
   )
 
 (use-package org-superstar
@@ -512,7 +542,7 @@ Support for  the Nix Language inside of Emacs
   (require 'ob)
   (setq xenops-reveal-on-entry t
         xenops-math-image-scale-factor 1.5
-        xenops-math-latex-process 'dvisvgm))
+        xenops-math-latex-process 'imagemagick))
 #+END_SRC
 
 *** Markdown
@@ -603,13 +633,27 @@ Support for  the Nix Language inside of Emacs
 
 (use-package smartparens
   :config
-  (smartparens-global-mode t))
+  (smartparens-global-mode t)
+  (sp-local-pair 'org-mode "$" "$")
+  (sp-local-pair 'org-mode "\\[" "\\]"))
 
 (use-package yasnippet
   :ensure t
   :config
   (yas-global-mode 1)
-  (yas-define-snippets 'org-mode '(("align" "\\begin{align*}\n$0\n\\end{align*}" "align*"))))
+  (yas-define-snippets 'org-mode
+    '(
+      ;; LaTeX environments
+      ("align"     "\\begin{align}\n$0\n\\end{align}"         "align environment")
+      ("align*"     "\\begin{align*}\n$0\n\\end{align*}"           "align* environment")
+      ("equation"   "\\begin{equation}\n$0\n\\end{equation}"     "equation environment")
+      ("equation*"  "\\begin{equation*}\n$0\n\\end{equation*}"   "equation* environment")
+
+      ;; Inline math fragment  $...$
+      ("im" "\\$$1\\$$0" "inline math")
+
+      ;; Display math fragment  \[...\]
+      ("dm" "\\\\[\n$0\n\\\\]" "display math"))))
 
 ;; (use-package yasnippet-snippets  ;; optional, adds many default snippets
 ;;   :ensure t)
